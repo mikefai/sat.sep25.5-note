@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { lessonSections, typeMeta } from './data/lessonData';
+import { allChallengeQuestions, challengeQuestions } from './data/challengeData';
 
 const STORAGE_KEY = 'northstar-sat-reading-progress-v1';
 const ALL_QUESTIONS = lessonSections.flatMap((section) => section.questions);
@@ -44,6 +45,7 @@ function Sidebar({ activeId, onNavigate, open, onClose, completed }) {
         <button className={`nav-item sub ${activeId === 'transition' ? 'active' : ''}`} onClick={() => onNavigate('transition')} aria-current={activeId === 'transition' ? 'page' : undefined}><span className="nav-number">01</span><span>Transitions</span></button>
         <button className={`nav-item sub ${activeId === 'inference' ? 'active' : ''}`} onClick={() => onNavigate('inference')} aria-current={activeId === 'inference' ? 'page' : undefined}><span className="nav-number">02</span><span>Inferences</span></button>
         <button className={`nav-item sub ${activeId === 'practice' ? 'active' : ''}`} onClick={() => onNavigate('practice')} aria-current={activeId === 'practice' ? 'page' : undefined}><Icon name="chart" /><span>Practice review</span></button>
+        <button className={`nav-item sub ${activeId === 'challenge' ? 'active' : ''}`} onClick={() => onNavigate('challenge')} aria-current={activeId === 'challenge' ? 'page' : undefined}><Icon name="target" /><span>40-question challenge</span></button>
       </div>
       <div className="nav-divider" />
       {navButton('plan', 'calendar', 'Study plan')}
@@ -92,7 +94,7 @@ function PracticeQuestion({ question, index, answers, onAnswer, revealed, onReve
   const isCorrect = selected === question.answer;
   const hasSelection = selected !== undefined;
   return <article className={`question-card ${revealed ? 'revealed' : ''}`}>
-    <div className="question-head"><span className="q-number">Q{String(index + 1).padStart(2, '0')}</span><span className="difficulty"><span className="difficulty-dot" /> {question.difficulty}</span></div>
+    <div className="question-head"><div className="question-identity"><span className="q-number">Q{String(index + 1).padStart(2, '0')}</span>{question.category && <span className="question-skill">{question.category}</span>}</div><span className="difficulty"><span className="difficulty-dot" /> {question.difficulty}</span></div>
     <div className="question-body">
       <div className="question-passage"><span className="copy-label">Passage</span><p>{question.passage}</p>{question.prompt && <p className="question-prompt">{question.prompt}</p>}</div>
       <div className="answer-area"><span className="copy-label">Choose one</span><div className="choices">{question.choices.map((choice, choiceIndex) => <button key={choice} className={`choice ${selected === choiceIndex ? 'selected' : ''} ${revealed && choiceIndex === question.answer ? 'correct' : ''} ${revealed && selected === choiceIndex && !isCorrect ? 'incorrect' : ''}`} aria-pressed={selected === choiceIndex} onClick={() => onAnswer(question.id, choiceIndex)}><span className="choice-letter">{String.fromCharCode(65 + choiceIndex)}</span><span>{choice}</span>{revealed && choiceIndex === question.answer && <Icon name="check" size={16} />}</button>)}</div><button className="reveal-button" disabled={!hasSelection} onClick={() => onReveal(question.id)}>{revealed ? 'Hide explanation' : hasSelection ? 'Reveal reasoning' : 'Choose an answer first'} <Icon name={revealed ? 'chevron' : 'arrow'} size={15} /></button></div>
@@ -129,6 +131,48 @@ function PracticeReview({ answers, revealed, onReveal, language, onNavigate }) {
   const correct = answered.filter((question) => answers[question.id] === question.answer);
   const accuracy = answered.length ? Math.round((correct.length / answered.length) * 100) : 0;
   return <section className="review-page" id="practice"><div className="review-header"><div><span className="eyebrow">Practice review</span><h1>Turn misses into<br /><em>repeatable decisions.</em></h1><p>Every hard question stays available here so you can inspect the reasoning instead of only seeing a score.</p></div><div className="score-orbit" style={{ '--score': `${accuracy}%` }}><div><strong>{correct.length}</strong><span>/ {answered.length || allQuestions.length} correct</span></div></div></div><div className="review-summary"><div><span>Answered</span><strong>{answered.length} / {allQuestions.length}</strong></div><div><span>Accuracy</span><strong>{accuracy}%</strong></div><div><span>Next move</span><strong>{answered.length === allQuestions.length ? 'Review misses' : 'Keep practicing'}</strong></div></div>{answered.length === 0 ? <div className="empty-review"><Icon name="note" size={27} /><h2>Your review shelf is ready.</h2><p>Answer a few hard questions and their reasoning will collect here.</p><button className="button primary" onClick={() => onNavigate('transition')}>Start with Transitions <Icon name="arrow" size={16} /></button></div> : <div className="review-list">{allQuestions.filter((question) => answers[question.id] !== undefined).map((question, index) => <PracticeQuestion key={question.id} question={question} index={index} answers={answers} onAnswer={() => {}} revealed={revealed[question.id]} onReveal={onReveal} language={language} />)}</div>}</section>;
+}
+
+function ChallengeTeaser({ onOpen }) {
+  return <section className="challenge-teaser">
+    <div className="teaser-icon"><Icon name="target" size={25} /></div>
+    <div><span className="section-label">New exam challenge</span><h2>40 original questions. Two skills. No easy patterns.</h2><p>Work through 20 Transitions and 20 Inferences questions with balanced answer positions and bilingual reasoning.</p></div>
+    <button className="button primary" onClick={onOpen}>Open challenge bank <Icon name="arrow" size={16} /></button>
+  </section>;
+}
+
+function ChallengeBank({ answers, revealed, onAnswer, onReveal, language, reducedMotion }) {
+  const [activeType, setActiveType] = useState('transition');
+  const [filter, setFilter] = useState('all');
+  const questions = challengeQuestions[activeType];
+  const answered = questions.filter((question) => answers[question.id] !== undefined);
+  const correct = answered.filter((question) => answers[question.id] === question.answer);
+  const visibleQuestions = questions.filter((question) => {
+    if (filter === 'unanswered') return answers[question.id] === undefined;
+    if (filter === 'missed') return answers[question.id] !== undefined && answers[question.id] !== question.answer;
+    return true;
+  });
+  const totalAnswered = allChallengeQuestions.filter((question) => answers[question.id] !== undefined).length;
+  const accuracy = answered.length ? Math.round((correct.length / answered.length) * 100) : 0;
+  const selectType = (type) => { setActiveType(type); setFilter('all'); document.getElementById('challenge')?.scrollIntoView({ behavior: reducedMotion ? 'auto' : 'smooth', block: 'start' }); };
+
+  return <section className="challenge-page" id="challenge">
+    <div className="challenge-hero">
+      <div><span className="eyebrow">Examiner-level practice · Original questions</span><h1>Challenge<br /><em>your reasoning.</em></h1><p>{language === 'TR' ? '20 Geçiş ve 20 Çıkarım sorusuyla ilişki, kapsam ve kanıt kontrolünü gerçek sınav baskısında uygulayın.' : 'Apply relationship, scope, and evidence control under exam pressure with 20 Transitions and 20 Inferences questions.'}</p></div>
+      <div className="challenge-total"><Icon name="target" size={24} /><strong>{totalAnswered}<span>/ 40</span></strong><small>questions completed</small><div className="challenge-total-track"><span style={{ width: `${(totalAnswered / 40) * 100}%` }} /></div></div>
+    </div>
+    <div className="challenge-tabs" role="tablist" aria-label="Challenge question type">
+      <button role="tab" aria-selected={activeType === 'transition'} className={activeType === 'transition' ? 'active' : ''} onClick={() => selectType('transition')}><span>01</span><div><strong>Transitions</strong><small>20 questions · Expression of Ideas</small></div></button>
+      <button role="tab" aria-selected={activeType === 'inference'} className={activeType === 'inference' ? 'active' : ''} onClick={() => selectType('inference')}><span>02</span><div><strong>Inferences</strong><small>20 questions · Information and Ideas</small></div></button>
+    </div>
+    <div className="challenge-toolbar">
+      <div><span className="copy-label">Current set</span><h2>{activeType === 'transition' ? 'Transitions' : 'Inferences'} challenge</h2></div>
+      <div className="challenge-metrics"><span><b>{answered.length}</b> / 20 answered</span><span><b>{accuracy}%</b> accuracy</span></div>
+      <div className="challenge-filters" role="group" aria-label="Question filter">{['all', 'unanswered', 'missed'].map((option) => <button key={option} className={filter === option ? 'active' : ''} aria-pressed={filter === option} onClick={() => setFilter(option)}>{option}</button>)}</div>
+    </div>
+    <div className="challenge-question-list">{visibleQuestions.map((question) => <PracticeQuestion key={question.id} question={question} index={questions.indexOf(question)} answers={answers} onAnswer={onAnswer} revealed={revealed[question.id]} onReveal={onReveal} language={language} />)}</div>
+    {!visibleQuestions.length && <div className="challenge-empty"><Icon name="check" size={23} /><h2>{filter === 'missed' ? 'No missed questions in this set.' : 'You answered every question in this set.'}</h2><p>Switch filters or move to the other question type to keep practicing.</p></div>}
+  </section>;
 }
 
 function ProgressStrip({ completed, answered, correct, onReview }) {
@@ -206,6 +250,7 @@ function MobileBottomNav({ activeId, onNavigate }) {
   const items = [
     ['overview', 'home', 'Overview'],
     ['transition', 'book', 'Lessons'],
+    ['challenge', 'target', 'Challenge'],
     ['plan', 'calendar', 'Plan'],
     ['practice', 'chart', 'Review'],
   ];
@@ -268,7 +313,7 @@ function App() {
     navigate('overview');
   };
   const learningPage = ['overview', 'transition', 'inference', 'practice'].includes(activeId);
-  const pageTitles = { overview: 'Course overview', transition: 'Transitions', inference: 'Inferences', practice: 'Practice review', plan: 'Study plan', resources: 'Resources', settings: 'Settings' };
+  const pageTitles = { overview: 'Course overview', transition: 'Transitions', inference: 'Inferences', practice: 'Practice review', challenge: '40-question challenge', plan: 'Study plan', resources: 'Resources', settings: 'Settings' };
 
   return <div className={`app-shell ${reducedMotion ? 'reduce-motion' : ''}`}>
     <Sidebar activeId={activeId} onNavigate={navigate} open={mobileNav} onClose={() => setMobileNav(false)} completed={completed} />
@@ -279,10 +324,11 @@ function App() {
         <div className="content-column">
           {learningPage && <div className="study-header"><LessonMap activeId={activeId} onNavigate={navigate} /><div className="study-title"><div><span className="eyebrow">Digital SAT Reading · Northstar notes</span><h1>Transitions + Inferences</h1><p>{language === 'TR' ? 'Her açıklamayı İngilizce okuyun, Türkçe karşılığını açın ve hemen ardından zor soruyla uygulayın.' : 'Read the explanation in English, use the Turkish scaffold, then apply it immediately with a hard question.'}</p></div><div className="save-state saved"><span />Autosaved</div></div></div>}
           {learningPage && <ProgressStrip completed={completed} answered={answered} correct={correct} onReview={() => navigate('practice')} />}
-          {activeId === 'overview' && <Overview onStart={startLesson} completed={completed} language={language} />}
+          {activeId === 'overview' && <><Overview onStart={startLesson} completed={completed} language={language} /><ChallengeTeaser onOpen={() => navigate('challenge')} /></>}
           {activeId === 'transition' && <><TypeIntro type="transition" language={language} onStart={() => document.getElementById('transition-signal')?.scrollIntoView({ behavior: reducedMotion ? 'auto' : 'smooth' })} /><LessonJumpBar type="transition" />{lessonSections.filter((section) => section.type === 'transition').map((section) => <LessonSection key={section.id} section={section} language={language} answers={answers} onAnswer={answerQuestion} revealed={revealed} onReveal={revealQuestion} onComplete={completeBlock} />)}</>}
           {activeId === 'inference' && <><TypeIntro type="inference" language={language} onStart={() => document.getElementById('inference-evidence')?.scrollIntoView({ behavior: reducedMotion ? 'auto' : 'smooth' })} /><LessonJumpBar type="inference" />{lessonSections.filter((section) => section.type === 'inference').map((section) => <LessonSection key={section.id} section={section} language={language} answers={answers} onAnswer={answerQuestion} revealed={revealed} onReveal={revealQuestion} onComplete={completeBlock} />)}</>}
           {activeId === 'practice' && <PracticeReview answers={answers} revealed={revealed} onReveal={revealQuestion} language={language} onNavigate={navigate} />}
+          {activeId === 'challenge' && <ChallengeBank answers={answers} revealed={revealed} onAnswer={answerQuestion} onReveal={revealQuestion} language={language} reducedMotion={reducedMotion} />}
           {activeId === 'plan' && <StudyPlan completed={completed} answered={answered} correct={correct} onNavigate={navigate} language={language} />}
           {activeId === 'resources' && <ResourcesPage language={language} onNavigate={navigate} />}
           {activeId === 'settings' && <SettingsPage language={language} setLanguage={setLanguage} reducedMotion={reducedMotion} setReducedMotion={setReducedMotion} onReset={resetProgress} />}
