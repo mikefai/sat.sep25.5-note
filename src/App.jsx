@@ -1,7 +1,8 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { lessonSections, typeMeta } from './data/lessonData';
 
 const STORAGE_KEY = 'northstar-sat-reading-progress-v1';
+const ALL_QUESTIONS = lessonSections.flatMap((section) => section.questions);
 
 function Icon({ name, size = 18 }) {
   const paths = {
@@ -18,6 +19,11 @@ function Icon({ name, size = 18 }) {
     spark: <path d="m12 2 1.7 6.3L20 10l-6.3 1.7L12 18l-1.7-6.3L4 10l6.3-1.7Z" />,
     menu: <><path d="M4 6h16M4 12h16M4 18h16" /></>,
     close: <><path d="m6 6 12 12M18 6 6 18" /></>,
+    calendar: <><rect x="3" y="5" width="18" height="16" rx="2" /><path d="M16 3v4M8 3v4M3 10h18" /></>,
+    target: <><circle cx="12" cy="12" r="8" /><circle cx="12" cy="12" r="3" /><path d="M12 2v3M22 12h-3" /></>,
+    search: <><circle cx="11" cy="11" r="7" /><path d="m20 20-4-4" /></>,
+    reset: <><path d="M4 4v6h6" /><path d="M5.5 15a8 8 0 1 0 .5-7L4 10" /></>,
+    eye: <><path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6S2 12 2 12Z" /><circle cx="12" cy="12" r="2.5" /></>,
   };
   return <svg aria-hidden="true" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">{paths[name]}</svg>;
 }
@@ -27,33 +33,34 @@ function Brand() {
 }
 
 function Sidebar({ activeId, onNavigate, open, onClose, completed }) {
-  return <aside className={`sidebar ${open ? 'is-open' : ''}`}>
+  const navButton = (id, icon, label) => <button className={`nav-item ${activeId === id ? 'active' : ''}`} onClick={() => onNavigate(id)} aria-current={activeId === id ? 'page' : undefined}><Icon name={icon} /> <span>{label}</span></button>;
+  return <aside id="course-sidebar" className={`sidebar ${open ? 'is-open' : ''}`} aria-label="Course navigation">
     <div className="sidebar-top"><Brand /><button className="icon-btn mobile-close" onClick={onClose} aria-label="Close navigation"><Icon name="close" /></button></div>
     <nav className="primary-nav" aria-label="Primary navigation">
-      <button className="nav-item"><Icon name="home" /> <span>Home</span></button>
+      <button className="nav-item" onClick={() => onNavigate('overview')}><Icon name="home" /> <span>Home</span></button>
       <div className="nav-group-label"><Icon name="book" /><span>SAT Reading</span><Icon name="chevron" size={15} /></div>
       <div className="lesson-nav">
-        <button className={`nav-item sub ${activeId === 'overview' ? 'active' : ''}`} onClick={() => onNavigate('overview')}><Icon name="note" /><span>Overview</span></button>
-        <button className={`nav-item sub ${activeId === 'transition' ? 'active' : ''}`} onClick={() => onNavigate('transition')}><span className="nav-number">01</span><span>Transitions</span></button>
-        <button className={`nav-item sub ${activeId === 'inference' ? 'active' : ''}`} onClick={() => onNavigate('inference')}><span className="nav-number">02</span><span>Inferences</span></button>
-        <button className={`nav-item sub ${activeId === 'practice' ? 'active' : ''}`} onClick={() => onNavigate('practice')}><Icon name="chart" /><span>Practice review</span></button>
+        <button className={`nav-item sub ${activeId === 'overview' ? 'active' : ''}`} onClick={() => onNavigate('overview')} aria-current={activeId === 'overview' ? 'page' : undefined}><Icon name="note" /><span>Overview</span></button>
+        <button className={`nav-item sub ${activeId === 'transition' ? 'active' : ''}`} onClick={() => onNavigate('transition')} aria-current={activeId === 'transition' ? 'page' : undefined}><span className="nav-number">01</span><span>Transitions</span></button>
+        <button className={`nav-item sub ${activeId === 'inference' ? 'active' : ''}`} onClick={() => onNavigate('inference')} aria-current={activeId === 'inference' ? 'page' : undefined}><span className="nav-number">02</span><span>Inferences</span></button>
+        <button className={`nav-item sub ${activeId === 'practice' ? 'active' : ''}`} onClick={() => onNavigate('practice')} aria-current={activeId === 'practice' ? 'page' : undefined}><Icon name="chart" /><span>Practice review</span></button>
       </div>
       <div className="nav-divider" />
-      <button className="nav-item"><Icon name="folder" /> <span>Study plan</span></button>
-      <button className="nav-item"><Icon name="note" /> <span>Resources</span></button>
-      <button className="nav-item"><Icon name="gear" /> <span>Settings</span></button>
+      {navButton('plan', 'calendar', 'Study plan')}
+      {navButton('resources', 'folder', 'Resources')}
+      {navButton('settings', 'gear', 'Settings')}
     </nav>
     <div className="sidebar-progress"><div className="progress-label"><span>Lesson progress</span><strong>{completed}/{lessonSections.length}</strong></div><div className="progress-track"><span style={{ width: `${(completed / lessonSections.length) * 100}%` }} /></div><p>Small, consistent practice builds reliable reading decisions.</p></div>
     <div className="sidebar-quote">“Clear thinking<br />travels further.”<small>NORTHSTAR SAT</small></div>
   </aside>;
 }
 
-function Topbar({ language, setLanguage, onMenu }) {
-  return <header className="topbar"><button className="icon-btn menu-toggle" onClick={onMenu} aria-label="Open navigation"><Icon name="menu" /></button><div className="breadcrumbs"><span>Digital SAT Reading</span><Icon name="arrow" size={15} /><strong>Transitions + Inferences</strong></div><div className="topbar-actions"><div className="language-toggle" role="group" aria-label="Language"><button className={language === 'EN' ? 'selected' : ''} onClick={() => setLanguage('EN')}>EN</button><button className={language === 'TR' ? 'selected' : ''} onClick={() => setLanguage('TR')}>TR</button></div><button className="avatar" aria-label="Profile">DK</button><Icon name="chevron" size={15} /></div></header>;
+function Topbar({ language, setLanguage, onMenu, title }) {
+  return <header className="topbar"><button className="icon-btn menu-toggle" onClick={onMenu} aria-label="Open navigation" aria-controls="course-sidebar"><Icon name="menu" /></button><div className="mobile-brand"><Brand /></div><div className="breadcrumbs"><span>Digital SAT Reading</span><Icon name="arrow" size={15} /><strong>{title}</strong></div><div className="topbar-actions"><div className="language-toggle" role="group" aria-label="Display language"><button className={language === 'EN' ? 'selected' : ''} aria-pressed={language === 'EN'} onClick={() => setLanguage('EN')}>EN</button><button className={language === 'TR' ? 'selected' : ''} aria-pressed={language === 'TR'} onClick={() => setLanguage('TR')}>TR</button></div><span className="autosave-pill"><span /> saved</span></div></header>;
 }
 
 function LessonMap({ activeId, onNavigate }) {
-  return <div className="lesson-map"><div className="map-step done"><span><Icon name="check" size={14} /></span><strong>Learn</strong></div><div className="map-line active" /><div className={`map-step ${activeId === 'transition' ? 'current' : ''}`}><span>01</span><strong>Transitions</strong></div><div className="map-line" /><div className={`map-step ${activeId === 'inference' ? 'current' : ''}`}><span>02</span><strong>Inferences</strong></div><div className="map-line" /><button className={`map-step map-link ${activeId === 'practice' ? 'current' : ''}`} onClick={() => onNavigate('practice')}><span>03</span><strong>Review</strong></button><div className="map-count">{activeId === 'overview' ? '1 / 4' : activeId === 'transition' ? '2 / 4' : activeId === 'inference' ? '3 / 4' : '4 / 4'}</div></div>;
+  return <div className="lesson-map"><button className="map-step map-link done" onClick={() => onNavigate('overview')}><span><Icon name="check" size={14} /></span><strong>Learn</strong></button><div className="map-line active" /><button className={`map-step map-link ${activeId === 'transition' ? 'current' : ''}`} onClick={() => onNavigate('transition')}><span>01</span><strong>Transitions</strong></button><div className="map-line" /><button className={`map-step map-link ${activeId === 'inference' ? 'current' : ''}`} onClick={() => onNavigate('inference')}><span>02</span><strong>Inferences</strong></button><div className="map-line" /><button className={`map-step map-link ${activeId === 'practice' ? 'current' : ''}`} onClick={() => onNavigate('practice')}><span>03</span><strong>Review</strong></button><div className="map-count">{activeId === 'overview' ? '1 / 4' : activeId === 'transition' ? '2 / 4' : activeId === 'inference' ? '3 / 4' : '4 / 4'}</div></div>;
 }
 
 function BilingualCopy({ english, turkish, language, className = '' }) {
@@ -83,11 +90,12 @@ function PassageAnnotation({ type }) {
 function PracticeQuestion({ question, index, answers, onAnswer, revealed, onReveal, language }) {
   const selected = answers[question.id];
   const isCorrect = selected === question.answer;
+  const hasSelection = selected !== undefined;
   return <article className={`question-card ${revealed ? 'revealed' : ''}`}>
     <div className="question-head"><span className="q-number">Q{String(index + 1).padStart(2, '0')}</span><span className="difficulty"><span className="difficulty-dot" /> {question.difficulty}</span></div>
     <div className="question-body">
       <div className="question-passage"><span className="copy-label">Passage</span><p>{question.passage}</p>{question.prompt && <p className="question-prompt">{question.prompt}</p>}</div>
-      <div className="answer-area"><span className="copy-label">Choose one</span><div className="choices">{question.choices.map((choice, choiceIndex) => <button key={choice} className={`choice ${selected === choiceIndex ? 'selected' : ''} ${revealed && choiceIndex === question.answer ? 'correct' : ''} ${revealed && selected === choiceIndex && !isCorrect ? 'incorrect' : ''}`} onClick={() => onAnswer(question.id, choiceIndex)}><span className="choice-letter">{String.fromCharCode(65 + choiceIndex)}</span><span>{choice}</span>{revealed && choiceIndex === question.answer && <Icon name="check" size={16} />}</button>)}</div><button className="reveal-button" onClick={() => onReveal(question.id)}>{revealed ? 'Hide explanation' : 'Reveal reasoning'} <Icon name={revealed ? 'chevron' : 'arrow'} size={15} /></button></div>
+      <div className="answer-area"><span className="copy-label">Choose one</span><div className="choices">{question.choices.map((choice, choiceIndex) => <button key={choice} className={`choice ${selected === choiceIndex ? 'selected' : ''} ${revealed && choiceIndex === question.answer ? 'correct' : ''} ${revealed && selected === choiceIndex && !isCorrect ? 'incorrect' : ''}`} aria-pressed={selected === choiceIndex} onClick={() => onAnswer(question.id, choiceIndex)}><span className="choice-letter">{String.fromCharCode(65 + choiceIndex)}</span><span>{choice}</span>{revealed && choiceIndex === question.answer && <Icon name="check" size={16} />}</button>)}</div><button className="reveal-button" disabled={!hasSelection} onClick={() => onReveal(question.id)}>{revealed ? 'Hide explanation' : hasSelection ? 'Reveal reasoning' : 'Choose an answer first'} <Icon name={revealed ? 'chevron' : 'arrow'} size={15} /></button></div>
     </div>
     {revealed && <div className={`reasoning ${isCorrect ? 'success' : ''}`}><div className="reasoning-icon">{isCorrect ? <Icon name="check" size={17} /> : <Icon name="spark" size={17} />}</div><div><strong>{isCorrect ? 'Your choice matches the passage.' : `Best answer: ${String.fromCharCode(65 + question.answer)}.`}</strong><p>{language === 'TR' ? question.explanationTr : question.explanation}</p><details><summary>Türkçe açıklama</summary><p>{question.explanationTr}</p></details><span className="clue"><b>Coach’s clue</b> {question.clue}</span></div></div>}
   </article>;
@@ -119,7 +127,96 @@ function PracticeReview({ answers, revealed, onReveal, language, onNavigate }) {
   const allQuestions = lessonSections.flatMap((section) => section.questions.map((question) => ({ ...question, type: section.type })));
   const answered = allQuestions.filter((question) => answers[question.id] !== undefined);
   const correct = answered.filter((question) => answers[question.id] === question.answer);
-  return <section className="review-page" id="practice"><div className="review-header"><div><span className="eyebrow">Practice review</span><h1>Turn misses into<br /><em>repeatable decisions.</em></h1><p>Every hard question stays available here so you can inspect the reasoning instead of only seeing a score.</p></div><div className="score-orbit"><div><strong>{correct.length}</strong><span>/ {answered.length || allQuestions.length} correct</span></div></div></div><div className="review-summary"><div><span>Answered</span><strong>{answered.length} / {allQuestions.length}</strong></div><div><span>Accuracy</span><strong>{answered.length ? Math.round((correct.length / answered.length) * 100) : 0}%</strong></div><div><span>Next move</span><strong>{answered.length === allQuestions.length ? 'Review misses' : 'Keep practicing'}</strong></div></div>{answered.length === 0 ? <div className="empty-review"><Icon name="note" size={27} /><h2>Your review shelf is ready.</h2><p>Answer a few hard questions and their reasoning will collect here.</p><button className="button primary" onClick={() => onNavigate('transition')}>Start with Transitions <Icon name="arrow" size={16} /></button></div> : <div className="review-list">{allQuestions.filter((question) => answers[question.id] !== undefined).map((question, index) => <PracticeQuestion key={question.id} question={question} index={index} answers={answers} onAnswer={() => {}} revealed={revealed[question.id]} onReveal={onReveal} language={language} />)}</div>}</section>;
+  const accuracy = answered.length ? Math.round((correct.length / answered.length) * 100) : 0;
+  return <section className="review-page" id="practice"><div className="review-header"><div><span className="eyebrow">Practice review</span><h1>Turn misses into<br /><em>repeatable decisions.</em></h1><p>Every hard question stays available here so you can inspect the reasoning instead of only seeing a score.</p></div><div className="score-orbit" style={{ '--score': `${accuracy}%` }}><div><strong>{correct.length}</strong><span>/ {answered.length || allQuestions.length} correct</span></div></div></div><div className="review-summary"><div><span>Answered</span><strong>{answered.length} / {allQuestions.length}</strong></div><div><span>Accuracy</span><strong>{accuracy}%</strong></div><div><span>Next move</span><strong>{answered.length === allQuestions.length ? 'Review misses' : 'Keep practicing'}</strong></div></div>{answered.length === 0 ? <div className="empty-review"><Icon name="note" size={27} /><h2>Your review shelf is ready.</h2><p>Answer a few hard questions and their reasoning will collect here.</p><button className="button primary" onClick={() => onNavigate('transition')}>Start with Transitions <Icon name="arrow" size={16} /></button></div> : <div className="review-list">{allQuestions.filter((question) => answers[question.id] !== undefined).map((question, index) => <PracticeQuestion key={question.id} question={question} index={index} answers={answers} onAnswer={() => {}} revealed={revealed[question.id]} onReveal={onReveal} language={language} />)}</div>}</section>;
+}
+
+function ProgressStrip({ completed, answered, correct, onReview }) {
+  const progress = Math.round((completed / lessonSections.length) * 100);
+  const accuracy = answered ? Math.round((correct / answered) * 100) : 0;
+  return <section className="progress-strip" aria-label="Current progress">
+    <div><span className="copy-label">Course progress</span><strong>{progress}%</strong></div>
+    <div className="strip-track"><span style={{ width: `${progress}%` }} /></div>
+    <div className="strip-stat"><strong>{answered}</strong><span>of {ALL_QUESTIONS.length} answered</span></div>
+    <div className="strip-stat"><strong>{accuracy}%</strong><span>accuracy</span></div>
+    <button className="text-button" onClick={onReview}>Open review <Icon name="arrow" size={14} /></button>
+  </section>;
+}
+
+function LessonJumpBar({ type }) {
+  const sections = lessonSections.filter((section) => section.type === type);
+  return <nav className="lesson-jumpbar" aria-label={`${type} lesson sections`}>
+    <span>{type === 'transition' ? 'Transition notes' : 'Inference notes'}</span>
+    <div>{sections.map((section) => <button key={section.id} onClick={() => document.getElementById(section.id)?.scrollIntoView({ behavior: 'smooth', block: 'start' })}><b>{section.number}</b>{section.shortTitle}</button>)}</div>
+  </nav>;
+}
+
+function StudyPlan({ completed, answered, correct, onNavigate, language }) {
+  const accuracy = answered ? Math.round((correct / answered) * 100) : 0;
+  const days = [
+    ['Day 1', 'Transition signals', 'Name the relationship before looking at the choices.', 'Önce ilişkiyi adlandırın, sonra seçeneklere bakın.', 'transition'],
+    ['Day 2', 'Sentence boundaries', 'Separate grammar from logical meaning.', 'Dil bilgisini mantıksal anlamdan ayırın.', 'transition'],
+    ['Day 3', 'Argument movement', 'Track claim, evidence, limitation, and conclusion.', 'İddia, kanıt, sınırlama ve sonucu takip edin.', 'transition'],
+    ['Day 4', 'Evidence anchors', 'Require two textual facts before inferring.', 'Çıkarım yapmadan önce iki metinsel kanıt bulun.', 'inference'],
+    ['Day 5', 'Scope control', 'Prefer the smallest claim all evidence supports.', 'Tüm kanıtların desteklediği en dar iddiayı seçin.', 'inference'],
+    ['Day 6', 'Precision audit', 'Check every quantifier, cause word, and certainty level.', 'Her nicelik, neden ve kesinlik ifadesini kontrol edin.', 'inference'],
+    ['Day 7', 'Error review', 'Redo misses without viewing the explanation first.', 'Açıklamayı açmadan yanlışları yeniden çözün.', 'practice'],
+  ];
+  return <section className="utility-page plan-page" id="plan">
+    <div className="utility-hero"><div><span className="eyebrow">Seven-day study plan</span><h1>Build a repeatable<br /><em>reading routine.</em></h1><p>{language === 'TR' ? 'Her gün 25 dakika: öğren, uygula, hatayı adlandır ve ertesi gün kısa tekrar yap.' : 'Use 25 focused minutes each day: learn, apply, name the error, and revisit it briefly tomorrow.'}</p></div><div className="plan-snapshot"><span>Current snapshot</span><strong>{completed}/{lessonSections.length}</strong><small>teaching blocks complete</small><div><b>{answered}</b> answered · <b>{accuracy}%</b> accuracy</div></div></div>
+    <div className="plan-grid">{days.map(([day, title, en, tr, destination], index) => <article className={index < completed ? 'complete' : index === completed ? 'today' : ''} key={day}><div className="plan-day"><span>{day}</span>{index < completed ? <Icon name="check" size={16} /> : <b>{String(index + 1).padStart(2, '0')}</b>}</div><h2>{title}</h2><p>{language === 'TR' ? tr : en}</p><button className="text-button" onClick={() => onNavigate(destination)}>{destination === 'practice' ? 'Open review' : 'Open lesson'} <Icon name="arrow" size={14} /></button></article>)}</div>
+    <div className="study-protocol"><Icon name="target" size={26} /><div><span className="section-label">The 25-minute protocol</span><h2>6 min learn · 14 min answer · 5 min review</h2><p>Record the reasoning error—not merely the letter you chose. “I treated a contrast as an example” is useful; “I picked B” is not.</p></div></div>
+  </section>;
+}
+
+const GLOSSARY = [
+  ['Contrast', 'A turn that limits, challenges, or reverses an earlier idea.', 'Önceki fikri sınırlayan, sorgulayan veya tersine çeviren ilişki.'],
+  ['Continuation', 'A move that adds aligned evidence or develops the same direction.', 'Aynı yönde ek kanıt sunan veya fikri geliştiren hareket.'],
+  ['Cause and effect', 'A relationship in which one condition produces or helps explain another.', 'Bir koşulun başka bir sonucu doğurduğu veya açıkladığı ilişki.'],
+  ['Concession', 'An admitted point followed by a qualification or stronger counterpoint.', 'Kabul edilen bir noktayı sınırlama veya daha güçlü karşı görüşün izlemesi.'],
+  ['Inference', 'The narrowest new claim that must or most likely follows from the evidence.', 'Kanıttan zorunlu ya da en güçlü biçimde çıkan en dar yeni iddia.'],
+  ['Scope', 'The exact population, time, degree, or condition covered by a claim.', 'Bir iddianın kapsadığı kesin grup, zaman, derece veya koşul.'],
+  ['Quantifier', 'A limit word such as some, most, may, only, or always.', 'Some, most, may, only, always gibi kapsam belirleyen sözcük.'],
+  ['Correlation', 'Two patterns occurring together without proof that one caused the other.', 'Birinin diğerine neden olduğu kanıtlanmadan iki örüntünün birlikte görülmesi.'],
+];
+
+function ResourcesPage({ language, onNavigate }) {
+  const [query, setQuery] = useState('');
+  const filtered = GLOSSARY.filter((entry) => entry.join(' ').toLocaleLowerCase('tr').includes(query.toLocaleLowerCase('tr')));
+  return <section className="utility-page resources-page" id="resources">
+    <div className="utility-heading"><div><span className="eyebrow">Bilingual resource shelf</span><h1>Find the language<br /><em>behind the logic.</em></h1><p>{language === 'TR' ? 'Temel SAT okuma kavramlarını İngilizce ve Türkçe olarak hızlıca bulun.' : 'Quickly retrieve the core language of SAT reading in English and Turkish.'}</p></div><div className="resource-actions"><button className="button primary" onClick={() => onNavigate('transition')}>Transition notes <Icon name="arrow" size={15} /></button><button className="button secondary" onClick={() => onNavigate('inference')}>Inference notes <Icon name="arrow" size={15} /></button></div></div>
+    <label className="resource-search"><Icon name="search" size={19} /><span className="sr-only">Search the glossary</span><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search English or Turkish terms…" /></label>
+    <div className="glossary-grid">{filtered.map(([term, english, turkish]) => <article key={term}><span className="term-index">{String(GLOSSARY.findIndex((entry) => entry[0] === term) + 1).padStart(2, '0')}</span><h2>{term}</h2><p>{english}</p><p className="turkish-definition">{turkish}</p></article>)}</div>
+    {!filtered.length && <div className="empty-resource">No matching term yet. Try “scope”, “contrast”, or “kanıt”.</div>}
+  </section>;
+}
+
+function SettingsPage({ language, setLanguage, reducedMotion, setReducedMotion, onReset }) {
+  return <section className="utility-page settings-page" id="settings">
+    <div className="utility-heading"><div><span className="eyebrow">Learning preferences</span><h1>Make the workspace<br /><em>work for you.</em></h1><p>Preferences are saved on this device together with your lesson progress.</p></div></div>
+    <div className="settings-list">
+      <article><div className="setting-icon"><Icon name="book" /></div><div><h2>Explanation language</h2><p>Choose the language used for prompts, coaching notes, and answer explanations. Core teaching comparisons remain bilingual.</p></div><div className="segmented-control" role="group" aria-label="Explanation language"><button className={language === 'EN' ? 'selected' : ''} onClick={() => setLanguage('EN')}>English</button><button className={language === 'TR' ? 'selected' : ''} onClick={() => setLanguage('TR')}>Türkçe</button></div></article>
+      <article><div className="setting-icon"><Icon name="eye" /></div><div><h2>Reduce motion</h2><p>Turn off smooth scrolling and interface movement while keeping every feature available.</p></div><button className={`switch ${reducedMotion ? 'on' : ''}`} role="switch" aria-checked={reducedMotion} onClick={() => setReducedMotion(!reducedMotion)}><span /><b>{reducedMotion ? 'On' : 'Off'}</b></button></article>
+      <article className="danger-setting"><div className="setting-icon"><Icon name="reset" /></div><div><h2>Reset study progress</h2><p>Clear saved answers and completed teaching blocks on this device. Language and motion preferences stay unchanged.</p></div><button className="button danger" onClick={onReset}>Reset progress</button></article>
+    </div>
+  </section>;
+}
+
+function MobileBottomNav({ activeId, onNavigate }) {
+  const items = [
+    ['overview', 'home', 'Overview'],
+    ['transition', 'book', 'Lessons'],
+    ['plan', 'calendar', 'Plan'],
+    ['practice', 'chart', 'Review'],
+  ];
+  return <nav className="mobile-bottom-nav" aria-label="Quick navigation">{items.map(([id, icon, label]) => { const active = id === 'transition' ? ['transition', 'inference'].includes(activeId) : activeId === id; return <button key={id} className={active ? 'active' : ''} aria-current={active ? 'page' : undefined} onClick={() => onNavigate(id)}><Icon name={icon} size={19} /><span>{label}</span></button>; })}</nav>;
+}
+
+function RightRail({ activeId, completed, answered, correct, language, onNavigate }) {
+  const progress = Math.round((completed / lessonSections.length) * 100);
+  const nextDestination = activeId === 'overview' ? 'transition' : activeId === 'transition' ? 'inference' : activeId === 'inference' ? 'practice' : 'overview';
+  const nextLabel = activeId === 'practice' ? 'Back to overview' : 'Continue lesson';
+  return <aside className="right-rail"><div className="rhythm-card"><div className="rail-heading"><h2>Study rhythm</h2><span>Live progress</span></div><div className="rhythm-progress"><div className="progress-ring" style={{ '--progress': `${progress}%` }}><span>{completed}</span><small>/ {lessonSections.length}</small></div><div><strong>steps complete</strong><p>{answered} of {ALL_QUESTIONS.length} questions answered</p><p>{answered ? Math.round((correct / answered) * 100) : 0}% current accuracy</p></div></div><div className="rail-steps"><span className="done"><b><Icon name="check" size={13} /></b>Read the teaching</span><span className={activeId === 'transition' ? 'current' : ''}><b>01</b>Transitions</span><span className={activeId === 'inference' ? 'current' : ''}><b>02</b>Inferences</span><span className={activeId === 'practice' ? 'current' : ''}><b>03</b>Review answers</span></div><button className="button primary full" onClick={() => onNavigate(nextDestination)}>{nextLabel} <Icon name="arrow" size={16} /></button><div className="rail-divider" /><span className="copy-label">In this lesson</span><div className="rail-links">{lessonSections.map((section) => <button key={section.id} onClick={() => { onNavigate(section.type); window.setTimeout(() => document.getElementById(section.id)?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 80); }}><span>{section.number}</span>{section.shortTitle}<Icon name="arrow" size={13} /></button>)}<button onClick={() => onNavigate('practice')}><span><Icon name="chart" size={14} /></span>Practice review<Icon name="arrow" size={13} /></button></div></div><div className="rail-tip"><span className="tip-star"><Icon name="spark" size={16} /></span><div><strong>Northstar cue</strong><p>{language === 'TR' ? 'Cevap seçmeden önce ilişkinin veya kanıtın kapsamını tek cümlede söyle.' : 'Before choosing, say the relationship or evidence scope in one sentence.'}</p></div></div></aside>;
 }
 
 function App() {
@@ -127,22 +224,74 @@ function App() {
     try { return JSON.parse(localStorage.getItem(STORAGE_KEY)) || {}; } catch { return {}; }
   });
   const [language, setLanguage] = useState(savedProgress.language || 'EN');
-  const [activeId, setActiveId] = useState('overview');
+  const [activeId, setActiveId] = useState(savedProgress.activeId || 'overview');
   const [mobileNav, setMobileNav] = useState(false);
   const [answers, setAnswers] = useState(savedProgress.answers || {});
   const [revealed, setRevealed] = useState({});
   const [completedBlocks, setCompletedBlocks] = useState(savedProgress.completedBlocks || []);
+  const [reducedMotion, setReducedMotion] = useState(savedProgress.reducedMotion || false);
   useEffect(() => {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify({ answers, completedBlocks, language }));
-  }, [answers, completedBlocks, language]);
+    localStorage.setItem(STORAGE_KEY, JSON.stringify({ answers, completedBlocks, language, activeId, reducedMotion }));
+  }, [activeId, answers, completedBlocks, language, reducedMotion]);
+  useEffect(() => {
+    const closeOnEscape = (event) => { if (event.key === 'Escape') setMobileNav(false); };
+    document.addEventListener('keydown', closeOnEscape);
+    document.body.classList.toggle('nav-open', mobileNav);
+    return () => { document.removeEventListener('keydown', closeOnEscape); document.body.classList.remove('nav-open'); };
+  }, [mobileNav]);
 
   const completed = useMemo(() => completedBlocks.length, [completedBlocks]);
-  const navigate = (destination = 'overview') => { setActiveId(destination); setMobileNav(false); window.setTimeout(() => { document.getElementById(destination === 'transition' ? 'transition-signal' : destination === 'inference' ? 'inference-evidence' : destination)?.scrollIntoView({ behavior: 'smooth', block: 'start' }); }, 40); };
+  const answered = useMemo(() => ALL_QUESTIONS.filter((question) => answers[question.id] !== undefined).length, [answers]);
+  const correct = useMemo(() => ALL_QUESTIONS.filter((question) => answers[question.id] === question.answer).length, [answers]);
+  const navigate = useCallback((destination = 'overview') => {
+    setActiveId(destination);
+    setMobileNav(false);
+    const target = destination;
+    window.setTimeout(() => {
+      const element = document.getElementById(target);
+      if (element) element.scrollIntoView({ behavior: reducedMotion ? 'auto' : 'smooth', block: 'start' });
+      else window.scrollTo({ top: 0, behavior: reducedMotion ? 'auto' : 'smooth' });
+    }, 40);
+  }, [reducedMotion]);
   const startLesson = (type) => navigate(type || 'transition');
-  const answerQuestion = (id, choice) => setAnswers((current) => ({ ...current, [id]: choice }));
+  const answerQuestion = useCallback((id, choice) => {
+    setAnswers((current) => ({ ...current, [id]: choice }));
+    setRevealed((current) => current[id] ? { ...current, [id]: false } : current);
+  }, []);
   const revealQuestion = (id) => setRevealed((current) => ({ ...current, [id]: !current[id] }));
-  const completeBlock = (id) => setCompletedBlocks((current) => current.includes(id) ? current : [...current, id]);
-  return <div className="app-shell"><Sidebar activeId={activeId} onNavigate={navigate} open={mobileNav} onClose={() => setMobileNav(false)} completed={completed} /><div className="main-shell"><Topbar language={language} setLanguage={setLanguage} onMenu={() => setMobileNav(true)} /><main><div className="content-column"><div className="study-header"><LessonMap activeId={activeId} onNavigate={navigate} /><div className="study-title"><div><span className="eyebrow">Digital SAT Reading · Northstar notes</span><h1>Transitions + Inferences</h1><p>{language === 'TR' ? 'Her açıklamayı İngilizce okuyun, Türkçe karşılığını açın ve hemen ardından zor soruyla uygulayın.' : 'Read the explanation in English, open the Turkish scaffold, then apply it immediately with a hard question.'}</p></div><div className="save-state"><span />Autosave on</div></div></div>{activeId === 'overview' && <Overview onStart={startLesson} completed={completed} language={language} />}{activeId === 'transition' && <><TypeIntro type="transition" language={language} onStart={() => document.getElementById('transition-signal')?.scrollIntoView({ behavior: 'smooth' })} />{lessonSections.filter((section) => section.type === 'transition').map((section) => <LessonSection key={section.id} section={section} language={language} answers={answers} onAnswer={answerQuestion} revealed={revealed} onReveal={revealQuestion} onComplete={completeBlock} />)}</>}{activeId === 'inference' && <><TypeIntro type="inference" language={language} onStart={() => document.getElementById('inference-evidence')?.scrollIntoView({ behavior: 'smooth' })} />{lessonSections.filter((section) => section.type === 'inference').map((section) => <LessonSection key={section.id} section={section} language={language} answers={answers} onAnswer={answerQuestion} revealed={revealed} onReveal={revealQuestion} onComplete={completeBlock} />)}</>}{activeId === 'practice' && <PracticeReview answers={answers} revealed={revealed} onReveal={revealQuestion} language={language} onNavigate={navigate} />}</div><aside className="right-rail"><div className="rhythm-card"><div className="rail-heading"><h2>Study rhythm</h2><span>Today</span></div><div className="rhythm-progress"><div className="progress-ring"><span>{completed}</span><small>/ {lessonSections.length}</small></div><div><strong>steps complete</strong><p>Keep the chain alive.</p></div></div><div className="rail-steps"><span className="done"><b><Icon name="check" size={13} /></b>Read the teaching</span><span className={activeId === 'transition' ? 'current' : ''}><b>01</b>Transitions</span><span className={activeId === 'inference' ? 'current' : ''}><b>02</b>Inferences</span><span className={activeId === 'practice' ? 'current' : ''}><b>03</b>Review answers</span></div><button className="button primary full" onClick={() => navigate(activeId === 'overview' ? 'transition' : activeId === 'transition' ? 'inference' : 'practice')}>{activeId === 'practice' ? 'Back to overview' : 'Continue lesson'} <Icon name="arrow" size={16} /></button><div className="rail-divider" /><span className="copy-label">In this lesson</span><div className="rail-links">{lessonSections.map((section) => <button key={section.id} onClick={() => navigate(section.type)}><span>{section.number}</span>{section.shortTitle}<Icon name="arrow" size={13} /></button>)}<button onClick={() => navigate('practice')}><span><Icon name="chart" size={14} /></span>Practice review<Icon name="arrow" size={13} /></button></div></div><div className="rail-tip"><span className="tip-star"><Icon name="spark" size={16} /></span><div><strong>Northstar cue</strong><p>{language === 'TR' ? 'Cevap seçmeden önce ilişkinin veya kanıtın kapsamını tek cümlede söyle.' : 'Before choosing, say the relationship or evidence scope in one sentence.'}</p></div></div></aside></main></div></div>;
+  const completeBlock = useCallback((id) => setCompletedBlocks((current) => current.includes(id) ? current : [...current, id]), []);
+  const resetProgress = () => {
+    if (!window.confirm('Reset all saved answers and completed lesson blocks on this device?')) return;
+    setAnswers({});
+    setRevealed({});
+    setCompletedBlocks([]);
+    navigate('overview');
+  };
+  const learningPage = ['overview', 'transition', 'inference', 'practice'].includes(activeId);
+  const pageTitles = { overview: 'Course overview', transition: 'Transitions', inference: 'Inferences', practice: 'Practice review', plan: 'Study plan', resources: 'Resources', settings: 'Settings' };
+
+  return <div className={`app-shell ${reducedMotion ? 'reduce-motion' : ''}`}>
+    <Sidebar activeId={activeId} onNavigate={navigate} open={mobileNav} onClose={() => setMobileNav(false)} completed={completed} />
+    {mobileNav && <button className="nav-backdrop" aria-label="Close navigation" onClick={() => setMobileNav(false)} />}
+    <div className="main-shell">
+      <Topbar language={language} setLanguage={setLanguage} onMenu={() => setMobileNav(true)} title={pageTitles[activeId]} />
+      <main className={learningPage ? '' : 'utility-layout'}>
+        <div className="content-column">
+          {learningPage && <div className="study-header"><LessonMap activeId={activeId} onNavigate={navigate} /><div className="study-title"><div><span className="eyebrow">Digital SAT Reading · Northstar notes</span><h1>Transitions + Inferences</h1><p>{language === 'TR' ? 'Her açıklamayı İngilizce okuyun, Türkçe karşılığını açın ve hemen ardından zor soruyla uygulayın.' : 'Read the explanation in English, use the Turkish scaffold, then apply it immediately with a hard question.'}</p></div><div className="save-state saved"><span />Autosaved</div></div></div>}
+          {learningPage && <ProgressStrip completed={completed} answered={answered} correct={correct} onReview={() => navigate('practice')} />}
+          {activeId === 'overview' && <Overview onStart={startLesson} completed={completed} language={language} />}
+          {activeId === 'transition' && <><TypeIntro type="transition" language={language} onStart={() => document.getElementById('transition-signal')?.scrollIntoView({ behavior: reducedMotion ? 'auto' : 'smooth' })} /><LessonJumpBar type="transition" />{lessonSections.filter((section) => section.type === 'transition').map((section) => <LessonSection key={section.id} section={section} language={language} answers={answers} onAnswer={answerQuestion} revealed={revealed} onReveal={revealQuestion} onComplete={completeBlock} />)}</>}
+          {activeId === 'inference' && <><TypeIntro type="inference" language={language} onStart={() => document.getElementById('inference-evidence')?.scrollIntoView({ behavior: reducedMotion ? 'auto' : 'smooth' })} /><LessonJumpBar type="inference" />{lessonSections.filter((section) => section.type === 'inference').map((section) => <LessonSection key={section.id} section={section} language={language} answers={answers} onAnswer={answerQuestion} revealed={revealed} onReveal={revealQuestion} onComplete={completeBlock} />)}</>}
+          {activeId === 'practice' && <PracticeReview answers={answers} revealed={revealed} onReveal={revealQuestion} language={language} onNavigate={navigate} />}
+          {activeId === 'plan' && <StudyPlan completed={completed} answered={answered} correct={correct} onNavigate={navigate} language={language} />}
+          {activeId === 'resources' && <ResourcesPage language={language} onNavigate={navigate} />}
+          {activeId === 'settings' && <SettingsPage language={language} setLanguage={setLanguage} reducedMotion={reducedMotion} setReducedMotion={setReducedMotion} onReset={resetProgress} />}
+        </div>
+        {learningPage && <RightRail activeId={activeId} completed={completed} answered={answered} correct={correct} language={language} onNavigate={navigate} />}
+      </main>
+    </div>
+    <MobileBottomNav activeId={activeId} onNavigate={navigate} />
+  </div>;
 }
 
 export default App;
