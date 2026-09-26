@@ -1,9 +1,57 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { memo, useCallback, useEffect, useMemo, useState } from 'react';
 import { lessonSections, typeMeta } from './data/lessonData';
 import { allChallengeQuestions, challengeQuestions } from './data/challengeData';
 
 const STORAGE_KEY = 'northstar-sat-reading-progress-v1';
 const ALL_QUESTIONS = lessonSections.flatMap((section) => section.questions);
+const NOOP = () => {};
+
+const QUESTION_SUPPORT = {
+  transition: {
+    EN: {
+      title: 'Build the bridge before choosing.',
+      intro: 'This guide narrows the task without revealing the answer.',
+      steps: [
+        'Cover the choices. Reduce the sentence before the blank to Idea A and the sentence after it to Idea B.',
+        'Name only the relationship: same direction, contrast, cause/result, example, or restatement.',
+        'Insert each serious contender. It must fit both the logic and the punctuation—not merely sound familiar.',
+      ],
+      clueLabel: 'Question-specific nudge',
+    },
+    TR: {
+      title: 'Seçmeden önce iki fikir arasındaki köprüyü kur.',
+      intro: 'Bu rehber doğru cevabı göstermeden görevi daraltır.',
+      steps: [
+        'Seçenekleri kapat. Boşluktan önceki cümleyi Fikir A, sonraki cümleyi Fikir B olarak birer kısa ifadeye indir.',
+        'Yalnızca ilişkiyi adlandır: aynı yön, karşıtlık, neden/sonuç, örnek ya da yeniden ifade.',
+        'Güçlü adayları boşluğa yerleştir. Sözcük hem mantığa hem noktalama işaretlerine uymalı; yalnızca tanıdık gelmesi yetmez.',
+      ],
+      clueLabel: 'Soruya özel İngilizce ipucu',
+    },
+  },
+  inference: {
+    EN: {
+      title: 'Make the smallest claim the evidence can carry.',
+      intro: 'This guide helps you control scope without revealing the answer.',
+      steps: [
+        'Underline two concrete facts in the passage. Your answer must account for both, not just one.',
+        'Draft the narrowest conclusion those facts support. Match the passage’s level of certainty.',
+        'Reject choices that add an unproven cause, population, time period, comparison, or absolute word.',
+      ],
+      clueLabel: 'Question-specific nudge',
+    },
+    TR: {
+      title: 'Kanıtın taşıyabildiği en dar iddiayı kur.',
+      intro: 'Bu rehber doğru cevabı göstermeden kapsamı kontrol etmeni sağlar.',
+      steps: [
+        'Metindeki iki somut kanıtın altını çiz. Cevap yalnızca birini değil, ikisini de açıklamalı.',
+        'Bu kanıtların desteklediği en dar sonucu kendi cümlenle yaz. Metnin kesinlik düzeyini koru.',
+        'Kanıtlanmamış neden, yeni grup, zaman, karşılaştırma veya kesinlik sözcüğü ekleyen seçenekleri ele.',
+      ],
+      clueLabel: 'Soruya özel İngilizce ipucu',
+    },
+  },
+};
 
 function Icon({ name, size = 18 }) {
   const paths = {
@@ -89,19 +137,26 @@ function PassageAnnotation({ type }) {
   return <div className="annotation-box inference-annotation"><div className="annotation-copy"><h3>Read the evidence ladder.</h3><p>The first trial improved recall for <mark className="mark-cause">some participants.</mark> A follow-up found the effect only when the material was revisited within a week. <mark className="mark-inference">Together,</mark> the findings support a time-sensitive benefit, not a universal memory improvement.</p></div><div className="evidence-ladder"><span><b>1</b> measured result</span><span><b>2</b> limiting condition</span><span><b>3</b> smallest safe claim</span></div></div>;
 }
 
-function PracticeQuestion({ question, index, answers, onAnswer, revealed, onReveal, language }) {
-  const selected = answers[question.id];
+const PracticeQuestion = memo(function PracticeQuestion({ question, index, selected, onAnswer, revealed, onReveal, language, questionType }) {
+  const [showHelp, setShowHelp] = useState(false);
   const isCorrect = selected === question.answer;
   const hasSelection = selected !== undefined;
+  const support = QUESTION_SUPPORT[questionType][language];
+  const helpId = `question-help-${question.id}`;
   return <article className={`question-card ${revealed ? 'revealed' : ''}`}>
     <div className="question-head"><div className="question-identity"><span className="q-number">Q{String(index + 1).padStart(2, '0')}</span>{question.category && <span className="question-skill">{question.category}</span>}</div><span className="difficulty"><span className="difficulty-dot" /> {question.difficulty}</span></div>
     <div className="question-body">
       <div className="question-passage"><span className="copy-label">Passage</span><p>{question.passage}</p>{question.prompt && <p className="question-prompt">{question.prompt}</p>}</div>
-      <div className="answer-area"><span className="copy-label">Choose one</span><div className="choices">{question.choices.map((choice, choiceIndex) => <button key={choice} className={`choice ${selected === choiceIndex ? 'selected' : ''} ${revealed && choiceIndex === question.answer ? 'correct' : ''} ${revealed && selected === choiceIndex && !isCorrect ? 'incorrect' : ''}`} aria-pressed={selected === choiceIndex} onClick={() => onAnswer(question.id, choiceIndex)}><span className="choice-letter">{String.fromCharCode(65 + choiceIndex)}</span><span>{choice}</span>{revealed && choiceIndex === question.answer && <Icon name="check" size={16} />}</button>)}</div><button className="reveal-button" disabled={!hasSelection} onClick={() => onReveal(question.id)}>{revealed ? 'Hide explanation' : hasSelection ? 'Reveal reasoning' : 'Choose an answer first'} <Icon name={revealed ? 'chevron' : 'arrow'} size={15} /></button></div>
+      <div className="answer-area"><span className="copy-label">Choose one</span><div className="choices">{question.choices.map((choice, choiceIndex) => <button key={choice} className={`choice ${selected === choiceIndex ? 'selected' : ''} ${revealed && choiceIndex === question.answer ? 'correct' : ''} ${revealed && selected === choiceIndex && !isCorrect ? 'incorrect' : ''}`} aria-pressed={selected === choiceIndex} onClick={() => onAnswer(question.id, choiceIndex)}><span className="choice-letter">{String.fromCharCode(65 + choiceIndex)}</span><span>{choice}</span>{revealed && choiceIndex === question.answer && <Icon name="check" size={16} />}</button>)}</div><div className="question-actions"><button className="reveal-button" disabled={!hasSelection} onClick={() => onReveal(question.id)}>{revealed ? 'Hide explanation' : hasSelection ? 'Reveal reasoning' : 'Choose an answer first'} <Icon name={revealed ? 'chevron' : 'arrow'} size={15} /></button><button className={`help-button ${showHelp ? 'active' : ''}`} aria-expanded={showHelp} aria-controls={helpId} onClick={() => setShowHelp((current) => !current)}><Icon name="spark" size={15} /> {showHelp ? (language === 'TR' ? 'Yardımı kapat' : 'Close help') : (language === 'TR' ? 'Yardım al' : 'Need help?')}</button></div></div>
     </div>
+    {showHelp && <aside className="question-help" id={helpId} aria-label={`${language === 'TR' ? 'Soru yardımı' : 'Question help'} ${index + 1}`}>
+      <div className="help-heading"><span className="help-icon"><Icon name="spark" size={17} /></span><div><span className="copy-label">{language === 'TR' ? 'ADIM ADIM YARDIM' : 'STEP-BY-STEP HELP'}</span><h3>{support.title}</h3><p>{support.intro}</p></div></div>
+      <ol className="help-steps">{support.steps.map((step, stepIndex) => <li key={step}><b>{stepIndex + 1}</b><span>{step}</span></li>)}</ol>
+      <div className="help-nudge"><strong>{support.clueLabel}</strong><p lang="en">{question.clue}</p></div>
+    </aside>}
     {revealed && <div className={`reasoning ${isCorrect ? 'success' : ''}`}><div className="reasoning-icon">{isCorrect ? <Icon name="check" size={17} /> : <Icon name="spark" size={17} />}</div><div><strong>{isCorrect ? 'Your choice matches the passage.' : `Best answer: ${String.fromCharCode(65 + question.answer)}.`}</strong><p>{language === 'TR' ? question.explanationTr : question.explanation}</p><details><summary>Türkçe açıklama</summary><p>{question.explanationTr}</p></details><span className="clue"><b>Coach’s clue</b> {question.clue}</span></div></div>}
   </article>;
-}
+});
 
 function LessonSection({ section, language, answers, onAnswer, revealed, onReveal, onComplete }) {
   const [showNote, setShowNote] = useState(true);
@@ -115,7 +170,7 @@ function LessonSection({ section, language, answers, onAnswer, revealed, onRevea
     {showNote && <div className="coaching-note"><div className="note-mark"><Icon name="spark" size={16} /></div><div><span className="copy-label">Coach’s note</span><p>{language === 'TR' ? section.noteTr : section.note}</p><div className="takeaway"><strong>Core takeaway</strong><span>{language === 'TR' ? section.takeawayTr : section.takeaway}</span></div></div></div>}
     <PassageAnnotation type={section.type} />
     <div className="practice-intro"><div><span className="section-label">Immediate retrieval practice</span><h4>Make the decision under pressure.</h4></div><span className="challenge-label">CHALLENGING</span></div>
-    <div className="question-list">{section.questions.map((question, index) => <PracticeQuestion key={question.id} question={question} index={index} answers={answers} onAnswer={onAnswer} revealed={revealed[question.id]} onReveal={onReveal} language={language} />)}</div>
+    <div className="question-list">{section.questions.map((question, index) => <PracticeQuestion key={question.id} question={question} index={index} selected={answers[question.id]} onAnswer={onAnswer} revealed={revealed[question.id]} onReveal={onReveal} language={language} questionType={section.type} />)}</div>
   </section>;
 }
 
@@ -130,7 +185,7 @@ function PracticeReview({ answers, revealed, onReveal, language, onNavigate }) {
   const answered = allQuestions.filter((question) => answers[question.id] !== undefined);
   const correct = answered.filter((question) => answers[question.id] === question.answer);
   const accuracy = answered.length ? Math.round((correct.length / answered.length) * 100) : 0;
-  return <section className="review-page" id="practice"><div className="review-header"><div><span className="eyebrow">Practice review</span><h1>Turn misses into<br /><em>repeatable decisions.</em></h1><p>Every hard question stays available here so you can inspect the reasoning instead of only seeing a score.</p></div><div className="score-orbit" style={{ '--score': `${accuracy}%` }}><div><strong>{correct.length}</strong><span>/ {answered.length || allQuestions.length} correct</span></div></div></div><div className="review-summary"><div><span>Answered</span><strong>{answered.length} / {allQuestions.length}</strong></div><div><span>Accuracy</span><strong>{accuracy}%</strong></div><div><span>Next move</span><strong>{answered.length === allQuestions.length ? 'Review misses' : 'Keep practicing'}</strong></div></div>{answered.length === 0 ? <div className="empty-review"><Icon name="note" size={27} /><h2>Your review shelf is ready.</h2><p>Answer a few hard questions and their reasoning will collect here.</p><button className="button primary" onClick={() => onNavigate('transition')}>Start with Transitions <Icon name="arrow" size={16} /></button></div> : <div className="review-list">{allQuestions.filter((question) => answers[question.id] !== undefined).map((question, index) => <PracticeQuestion key={question.id} question={question} index={index} answers={answers} onAnswer={() => {}} revealed={revealed[question.id]} onReveal={onReveal} language={language} />)}</div>}</section>;
+  return <section className="review-page" id="practice"><div className="review-header"><div><span className="eyebrow">Practice review</span><h1>Turn misses into<br /><em>repeatable decisions.</em></h1><p>Every hard question stays available here so you can inspect the reasoning instead of only seeing a score.</p></div><div className="score-orbit" style={{ '--score': `${accuracy}%` }}><div><strong>{correct.length}</strong><span>/ {answered.length || allQuestions.length} correct</span></div></div></div><div className="review-summary"><div><span>Answered</span><strong>{answered.length} / {allQuestions.length}</strong></div><div><span>Accuracy</span><strong>{accuracy}%</strong></div><div><span>Next move</span><strong>{answered.length === allQuestions.length ? 'Review misses' : 'Keep practicing'}</strong></div></div>{answered.length === 0 ? <div className="empty-review"><Icon name="note" size={27} /><h2>Your review shelf is ready.</h2><p>Answer a few hard questions and their reasoning will collect here.</p><button className="button primary" onClick={() => onNavigate('transition')}>Start with Transitions <Icon name="arrow" size={16} /></button></div> : <div className="review-list">{allQuestions.filter((question) => answers[question.id] !== undefined).map((question, index) => <PracticeQuestion key={question.id} question={question} index={index} selected={answers[question.id]} onAnswer={NOOP} revealed={revealed[question.id]} onReveal={onReveal} language={language} questionType={question.type} />)}</div>}</section>;
 }
 
 function ChallengeTeaser({ onOpen }) {
@@ -170,7 +225,7 @@ function ChallengeBank({ answers, revealed, onAnswer, onReveal, language, reduce
       <div className="challenge-metrics"><span><b>{answered.length}</b> / 20 answered</span><span><b>{accuracy}%</b> accuracy</span></div>
       <div className="challenge-filters" role="group" aria-label="Question filter">{['all', 'unanswered', 'missed'].map((option) => <button key={option} className={filter === option ? 'active' : ''} aria-pressed={filter === option} onClick={() => setFilter(option)}>{option}</button>)}</div>
     </div>
-    <div className="challenge-question-list">{visibleQuestions.map((question) => <PracticeQuestion key={question.id} question={question} index={questions.indexOf(question)} answers={answers} onAnswer={onAnswer} revealed={revealed[question.id]} onReveal={onReveal} language={language} />)}</div>
+    <div className="challenge-question-list">{visibleQuestions.map((question) => <PracticeQuestion key={question.id} question={question} index={questions.indexOf(question)} selected={answers[question.id]} onAnswer={onAnswer} revealed={revealed[question.id]} onReveal={onReveal} language={language} questionType={activeType} />)}</div>
     {!visibleQuestions.length && <div className="challenge-empty"><Icon name="check" size={23} /><h2>{filter === 'missed' ? 'No missed questions in this set.' : 'You answered every question in this set.'}</h2><p>Switch filters or move to the other question type to keep practicing.</p></div>}
   </section>;
 }
@@ -303,7 +358,7 @@ function App() {
     setAnswers((current) => ({ ...current, [id]: choice }));
     setRevealed((current) => current[id] ? { ...current, [id]: false } : current);
   }, []);
-  const revealQuestion = (id) => setRevealed((current) => ({ ...current, [id]: !current[id] }));
+  const revealQuestion = useCallback((id) => setRevealed((current) => ({ ...current, [id]: !current[id] })), []);
   const completeBlock = useCallback((id) => setCompletedBlocks((current) => current.includes(id) ? current : [...current, id]), []);
   const resetProgress = () => {
     if (!window.confirm('Reset all saved answers and completed lesson blocks on this device?')) return;

@@ -8,7 +8,8 @@
     "build": "vite build",
     "preview": "vite preview",
     "lint": "eslint .",
-    "validate:challenge": "node scripts/validate-challenge.mjs"
+    "validate:challenge": "node scripts/validate-challenge.mjs",
+    "validate:support": "node scripts/validate-support.mjs"
   },
   "dependencies": {
     "@vitejs/plugin-react": "latest",
